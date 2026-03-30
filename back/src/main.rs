@@ -6,7 +6,7 @@ use rocket::{
     http::Status,
     serde::{json::Json, Deserialize, Serialize},
 };
-use std::sync::Mutex;
+use std::{collections::VecDeque, sync::Mutex};
 
 #[derive(Debug, Clone, Deserialize)]
 struct Info {
@@ -17,20 +17,31 @@ struct Info {
 
 static KEY: &'static str = "somereallysecurecryptographickeyofsomesort";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 struct StoredInfo {
     timestamp: u64,
     hr: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct Response {
-    status: String,
-    hr: f64,
-    timestamp: u64,
+enum UserState {
+    CALIBRATING,
+    RESTING,
+    ACTIVE,
+    STRESSED,
 }
 
-static USER_STATUSES: Lazy<Mutex<Vec<StoredInfo>>> = Lazy::new(|| Mutex::new(Vec::new()));
+#[derive(Debug, Clone, Serialize)]
+struct Response {
+    status: String,
+    avg_hr: f64,
+    user_state: UserState,
+    timestamp: u64,
+    hr_data: Vec<StoredInfo>,
+}
+
+static USER_STATUSES: Lazy<Mutex<VecDeque<StoredInfo>>> =
+    Lazy::new(|| Mutex::new(VecDeque::with_capacity(60)));
 
 #[post("/info", format = "json", data = "<info>")]
 async fn post_info(info: Json<Info>) -> Result<Status, Status> {
@@ -40,7 +51,7 @@ async fn post_info(info: Json<Info>) -> Result<Status, Status> {
 
     match USER_STATUSES.lock() {
         Ok(mut statuses) => {
-            statuses.push(StoredInfo {
+            statuses.push_back(StoredInfo {
                 timestamp: info.timestamp,
                 hr: info.hr,
             });
@@ -53,9 +64,16 @@ async fn post_info(info: Json<Info>) -> Result<Status, Status> {
     Ok(Status::Ok)
 }
 
-#[get("/info")]
-async fn get_info() -> Result<Status, Status> {
-    Ok(Status::Ok)
+#[get("/info?<key>")]
+async fn get_info(key: String) -> Result<Status, Status> {
+    if key != KEY {
+        return Err(Status::Unauthorized);
+    }
+
+    match USER_STATUSES.lock() {
+        Ok(_) => Ok(Status::Ok),
+        Err(_) => Err(Status::InternalServerError),
+    }
 }
 
 #[launch]
