@@ -29,3 +29,8 @@ pub struct Info {
     pub hr: f64,
     pub timestamp: u64,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Key {
+    pub key: String,
+}
