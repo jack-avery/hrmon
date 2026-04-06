@@ -6,5 +6,5 @@ mod routes;
 
 #[launch]
 async fn rocket() -> _ {
-    rocket::build().mount("/", routes::routes())
+    rocket::build().mount("/api", routes::routes())
 }
