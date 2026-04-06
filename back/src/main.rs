@@ -8,37 +8,11 @@ use rocket::{
 };
 use std::{collections::VecDeque, sync::Mutex};
 
-#[derive(Debug, Clone, Deserialize)]
-struct Info {
-    key: String,
-    hr: f64,
-    timestamp: u64,
-}
+mod model;
+
+use model::{Info, Response, StoredInfo, UserState};
 
 static KEY: &'static str = "somereallysecurecryptographickeyofsomesort";
-
-#[derive(Debug, Clone, Serialize)]
-struct StoredInfo {
-    timestamp: u64,
-    hr: f64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-enum UserState {
-    CALIBRATING,
-    RESTING,
-    ACTIVE,
-    STRESSED,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct Response {
-    status: String,
-    avg_hr: f64,
-    user_state: UserState,
-    timestamp: u64,
-    hr_data: Vec<StoredInfo>,
-}
 
 static USER_STATUSES: Lazy<Mutex<VecDeque<StoredInfo>>> =
     Lazy::new(|| Mutex::new(VecDeque::with_capacity(60)));
