@@ -2,14 +2,18 @@ use once_cell::sync::Lazy;
 use rocket::{http::Status, serde::json::Json};
 use std::{collections::VecDeque, sync::Mutex};
 
-use crate::model::{Info, Key, StoredInfo};
+use crate::model::{Info, InfoResponse, Key, StoredInfo, UserState};
 
 static KEY: &'static str = "somereallysecurecryptographickeyofsomesort";
 
 static CALIBRATION_PERIOD_SECONDS: usize = 10;
+static STD_DEVS_TO_CONSIDER_ELEVATED: f64 = 2.0;
 
 static USER_STATUSES: Lazy<Mutex<VecDeque<StoredInfo>>> =
     Lazy::new(|| Mutex::new(VecDeque::with_capacity(60)));
+
+static AVG_HR: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(0.0));
+static STD_DEV_HR: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(0.0));
 
 /// Flushes the user statuses.
 ///
@@ -43,6 +47,26 @@ pub async fn flush_info(key: Json<Key>) -> Result<Status, Status> {
         }
         Err(e) => {
             log::error!("Failed to lock USER_STATUSES: {}", e);
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    match AVG_HR.lock() {
+        Ok(mut avg_hr) => {
+            *avg_hr = 0.0;
+        }
+        Err(e) => {
+            log::error!("Failed to lock AVG_HR: {}", e);
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    match STD_DEV_HR.lock() {
+        Ok(mut std_dev_hr) => {
+            *std_dev_hr = 0.0;
+        }
+        Err(e) => {
+            log::error!("Failed to lock STD_DEV_HR: {}", e);
             return Err(Status::InternalServerError);
         }
     };
@@ -88,7 +112,30 @@ pub async fn post_info(info: Json<Info>) -> Result<Status, Status> {
             if statuses.len() > 60 {
                 statuses.pop_front();
             } else if statuses.len() == CALIBRATION_PERIOD_SECONDS {
-                // ... do some logic to calculate resting heart rate and variance
+                match AVG_HR.lock() {
+                    Ok(mut avg_hr) => {
+                        *avg_hr =
+                            statuses.iter().map(|s| s.hr).sum::<f64>() / statuses.len() as f64;
+
+                        match STD_DEV_HR.lock() {
+                            Ok(mut std_dev_hr) => {
+                                *std_dev_hr = statuses
+                                    .iter()
+                                    .map(|s| (s.hr - *avg_hr).powi(2))
+                                    .sum::<f64>()
+                                    / statuses.len() as f64;
+                            }
+                            Err(e) => {
+                                log::error!("Failed to lock STD_DEV_HR: {}", e);
+                                return Err(Status::InternalServerError);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to lock AVG_HR: {}", e);
+                        return Err(Status::InternalServerError);
+                    }
+                }
             }
         }
         Err(e) => {
@@ -135,13 +182,38 @@ pub async fn post_info(info: Json<Info>) -> Result<Status, Status> {
 /// }
 /// ```
 #[get("/info?<key>")]
-pub async fn get_info(key: String) -> Result<Status, Status> {
+pub async fn get_info(key: String) -> Result<Json<InfoResponse>, Status> {
     if key != KEY {
         return Err(Status::Unauthorized);
     }
 
     match USER_STATUSES.lock() {
-        Ok(_) => Ok(Status::Ok),
+        Ok(statuses) => {
+            if statuses.len() < CALIBRATION_PERIOD_SECONDS {
+                return Ok(Json(InfoResponse {
+                    user_state: UserState::CALIBRATING,
+                    avg_hr: 0.0,
+                    hr_data: statuses.iter().map(|s| s.clone()).collect(),
+                }));
+            }
+
+            let avg_hr = AVG_HR.lock().unwrap();
+            let std_dev_hr = STD_DEV_HR.lock().unwrap();
+
+            let user_state = if *avg_hr + *std_dev_hr * STD_DEVS_TO_CONSIDER_ELEVATED
+                < statuses.back().unwrap().hr
+            {
+                UserState::ELEVATED
+            } else {
+                UserState::NOMINAL
+            };
+
+            return Ok(Json(InfoResponse {
+                user_state,
+                avg_hr: *avg_hr,
+                hr_data: statuses.iter().map(|s| s.clone()).collect(),
+            }));
+        }
         Err(e) => {
             log::error!("Failed to lock USER_STATUSES: {}", e);
             return Err(Status::InternalServerError);

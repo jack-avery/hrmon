@@ -13,7 +13,7 @@ pub enum UserState {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Response {
+pub struct InfoResponse {
     /// The current state of the user
     pub user_state: UserState,
 
