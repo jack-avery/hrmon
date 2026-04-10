@@ -15,7 +15,7 @@ static USER_STATUSES: Lazy<Mutex<VecDeque<StoredInfo>>> =
 static AVG_HR: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(0.0));
 static STD_DEV_HR: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(0.0));
 
-/// Flushes the user statuses.
+/// Flushes state.
 ///
 /// ### Sample Request
 ///
@@ -32,9 +32,9 @@ static STD_DEV_HR: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(0.0));
 ///
 /// ### Response Info
 ///
-/// HTTP 200 if the user statuses were flushed successfully.
+/// HTTP 200 if state was flushed successfully.
 /// HTTP 401 if the key is invalid.
-/// HTTP 500 if the data could not be inserted.
+/// HTTP 500 if a portion of state could not be flushed.
 #[post("/flush", format = "json", data = "<key>")]
 pub async fn flush_info(key: Json<Key>) -> Result<Status, Status> {
     if key.key != KEY {
