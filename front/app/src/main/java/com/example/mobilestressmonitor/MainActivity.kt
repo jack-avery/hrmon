@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stressLevelText: TextView
     private lateinit var stressCard: MaterialCardView
     private lateinit var lastUpdatedText: TextView
+    private lateinit var newSessionButton: Button
 
     private val timeFormat = SimpleDateFormat("h:mm:ss a", Locale.getDefault())
 
@@ -47,8 +48,10 @@ class MainActivity : AppCompatActivity() {
         stressLevelText = findViewById(R.id.stressLevelText)
         stressCard = findViewById(R.id.stressCard)
         lastUpdatedText = findViewById(R.id.lastUpdatedText)
+        newSessionButton = findViewById(R.id.newSessionButton)
 
         retryButton.setOnClickListener { viewModel.retry() }
+        newSessionButton.setOnClickListener { viewModel.flushSession() }
 
         lifecycleScope.launch {
             viewModel.state.collect { state ->

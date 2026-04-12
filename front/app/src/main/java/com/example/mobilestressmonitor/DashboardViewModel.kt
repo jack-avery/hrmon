@@ -64,6 +64,22 @@ class DashboardViewModel : ViewModel() {
         startPolling()
     }
 
+    fun flushSession() {
+        pollingJob?.cancel()
+        _state.value = DashboardState.Loading
+        viewModelScope.launch {
+            try {
+                api.flush(FlushRequest(Constants.API_KEY))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = DashboardState.Error(e.message ?: "Unknown network error")
+                return@launch
+            }
+            startPolling()
+        }
+    }
+
     private fun startPolling() {
         pollingJob = viewModelScope.launch {
             while (true) {
