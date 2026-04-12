@@ -189,14 +189,6 @@
                 android:text=""
                 android:textColor="?attr/colorOnSurface"
                 android:textSize="12sp" />
-
-            <Button
-                android:id="@+id/newSessionButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="16dp"
-                android:text="New Session" />
         </LinearLayout>
 
     </LinearLayout>
