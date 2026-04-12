@@ -12,3 +12,7 @@ data class HrReading(
     @SerializedName("timestamp") val timestamp: Long,
     @SerializedName("hr") val hr: Double
 )
+
+data class FlushRequest(
+    @SerializedName("key") val key: String
+)
